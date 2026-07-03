@@ -9,6 +9,19 @@ import { CreateContestDto } from './dto/create-contest.dto';
 import { UpdateContestDto } from './dto/update-contest.dto';
 import { log } from 'node:console';
 
+function computeStatus(contest: any, now: Date): 'active' | 'voting' | 'completed' {
+  if (contest.status === 'completed') return 'completed';
+  const endAt = new Date(contest.end_at);
+  // Always compute votingEndAt: use stored value or fallback to end_at + voting_duration
+  const votingEndAt = contest.voting_end_at
+    ? new Date(contest.voting_end_at)
+    : new Date(endAt.getTime() + (contest.voting_duration_seconds ?? 300) * 1000);
+
+  if (now < endAt) return 'active';
+  if (now < votingEndAt) return 'voting';
+  return 'completed';
+}
+
 @Injectable()
 export class ContestsService {
   private readonly logger = new Logger(ContestsService.name);
@@ -29,7 +42,9 @@ export class ContestsService {
       throw new BadRequestException(error.message);
     }
 
-    // For each contest, fetch the cover count
+    const now = new Date();
+
+    // For each contest, fetch the cover count and compute effective status
     const contestsWithCounts = await Promise.all(
       contests.map(async (contest) => {
         const { count, error: countError } = await supabase
@@ -37,8 +52,11 @@ export class ContestsService {
           .select('*', { count: 'exact', head: true })
           .eq('contest_id', contest.id);
 
+        const effectiveStatus = computeStatus(contest, now);
+
         return {
           ...contest,
+          status: effectiveStatus,
           covers_count: countError ? 0 : count || 0,
         };
       }),
@@ -61,27 +79,42 @@ export class ContestsService {
       throw new NotFoundException(`Contest with ID ${id} not found`);
     }
 
-    // Fetch covers (submissions) for this contest along with their vote stats and user profile
-    const { data: covers, error: coversError } = await supabase
+    // 1. Fetch covers + votes (pas de join profiles car user_id → auth.users, pas profiles)
+    const { data: covers } = await supabase
       .from('covers')
-      .select('*')
+      .select('*, votes(score)')
       .eq('contest_id', id);
 
-    const coversWithStats = (covers || []).map((cover: any) => {
+    const now = new Date();
+    if (!covers || covers.length === 0) {
+      return { ...contest, status: computeStatus(contest, now), covers: [] };
+    }
+
+    // 2. Fetch profiles séparément pour tous les user_ids
+    const userIds = [...new Set(covers.map((c: any) => c.user_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username, elo, avatar_url')
+      .in('id', userIds);
+
+    const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
+
+    const coversWithStats = covers.map((cover: any) => {
       const votes = (cover.votes as { score: number }[]) || [];
       const voteCount = votes.length;
-      const totalScore = votes.reduce((sum, v) => sum + v.score, 0);
+      const totalScore = votes.reduce((sum: number, v: any) => sum + v.score, 0);
       const averageScore =
         voteCount > 0 ? parseFloat((totalScore / voteCount).toFixed(2)) : 0;
+      const profile = profileMap.get(cover.user_id);
 
       return {
         id: cover.id,
         user_id: cover.user_id,
         audio_url: cover.audio_url,
         created_at: cover.created_at,
-        username: cover.profiles?.username || 'Unknown',
-        elo: cover.profiles?.elo || 1200,
-        avatar_url: cover.profiles?.avatar_url,
+        username: profile?.username || 'Anonyme',
+        elo: profile?.elo || 1200,
+        avatar_url: profile?.avatar_url || null,
         average_score: averageScore,
         vote_count: voteCount,
       };
@@ -95,9 +128,17 @@ export class ContestsService {
       return b.vote_count - a.vote_count;
     });
 
+    // ELO gains for top 3 (mirrors resolve logic)
+    const ELO_GAINS = [30, 20, 10];
+    const coversWithGain = coversWithStats.map((cover, idx) => ({
+      ...cover,
+      elo_gain: idx < 3 ? ELO_GAINS[idx] : 0,
+    }));
+
     return {
       ...contest,
-      covers: coversWithStats,
+      status: computeStatus(contest, now),
+      covers: coversWithGain,
     };
   }
 
@@ -107,6 +148,8 @@ export class ContestsService {
 
     const createdAt = new Date();
     const endAt = new Date(createdAt.getTime() + dto.duration_seconds * 1000);
+    const votingDuration = dto.voting_duration_seconds ?? 300;
+    const votingEndAt = new Date(endAt.getTime() + votingDuration * 1000);
 
     const { data, error } = await supabase
       .from('contests')
@@ -117,7 +160,11 @@ export class ContestsService {
         duration_seconds: dto.duration_seconds,
         status: 'active',
         end_at: endAt.toISOString(),
+        voting_end_at: votingEndAt.toISOString(),
         created_by: userId,
+        cover_image_url: dto.cover_image_url ?? null,
+        cover_color: dto.cover_color ?? null,
+        voting_duration_seconds: votingDuration,
       })
       .select()
       .single();
@@ -191,6 +238,22 @@ export class ContestsService {
 
     if (contest.status === 'completed') {
       throw new BadRequestException('Contest has already been resolved');
+    }
+
+    // Ensure the full voting period is over before resolving
+    const now = new Date();
+    const endAt = new Date(contest.end_at);
+    const votingEndAt = contest.voting_end_at
+      ? new Date(contest.voting_end_at)
+      : new Date(endAt.getTime() + (contest.voting_duration_seconds ?? 300) * 1000);
+
+    if (now < votingEndAt) {
+      const effectiveStatus = now < endAt ? 'active' : 'voting';
+      throw new BadRequestException(
+        effectiveStatus === 'active'
+          ? 'Submission period is not over yet'
+          : 'Voting period is still ongoing — wait for it to end before resolving',
+      );
     }
 
     // 2. Fetch all covers with their votes

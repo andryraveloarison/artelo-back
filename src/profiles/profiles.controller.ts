@@ -25,4 +25,15 @@ export class ProfilesController {
     const userId = req.user.id;
     return this.profilesService.getMe(userId);
   }
+
+  @Get('me/covers')
+  @UseGuards(SupabaseGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all covers submitted by the logged-in user with their contest ranking' })
+  @ApiResponse({ status: 200, description: 'Covers returned successfully.' })
+  @ApiResponse({ status: 401, description: 'Unauthorized.' })
+  async getMeCovers(@Req() req: any) {
+    const userId = req.user.id;
+    return this.profilesService.getMeCovers(userId);
+  }
 }

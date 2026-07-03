@@ -15,7 +15,7 @@ export class VotesService {
     // 1. Fetch target cover details to get contest_id and owner_id
     const { data: targetCover, error: coverError } = await systemSupabase
       .from('covers')
-      .select('*, contests(status, end_at)')
+      .select('*, contests(status, end_at, voting_end_at, voting_duration_seconds)')
       .eq('id', dto.cover_id)
       .single();
 
@@ -24,23 +24,29 @@ export class VotesService {
     }
 
     const contestId = targetCover.contest_id;
-    const coverOwnerId = targetCover.user_id;
     const contest = targetCover.contests;
 
-    // 2. Ensure the contest is active
-    if (contest.status !== 'active') {
-      throw new BadRequestException('This contest has already ended');
+    // 2. Ensure the voting window is open (end_at < now < voting_end_at)
+    if (contest.status === 'completed') {
+      throw new BadRequestException('Ce concours est terminé');
     }
 
     const now = new Date();
     const endAt = new Date(contest.end_at);
-    if (now > endAt) {
-      throw new BadRequestException('Voting has closed as the contest duration has expired');
+    const votingEndAt = contest.voting_end_at
+      ? new Date(contest.voting_end_at)
+      : new Date(endAt.getTime() + (contest.voting_duration_seconds ?? 300) * 1000);
+
+    if (now < endAt) {
+      throw new BadRequestException('La période de soumission est encore ouverte — le vote commence après');
+    }
+    if (now > votingEndAt) {
+      throw new BadRequestException('La période de vote est terminée');
     }
 
     // 3. Prevent voting on own cover
-    if (coverOwnerId === voterId) {
-      throw new BadRequestException('You cannot vote for your own cover');
+    if (targetCover.user_id === voterId) {
+      throw new BadRequestException('Vous ne pouvez pas voter pour votre propre cover');
     }
 
     // 4. Ensure voter has uploaded a cover for the SAME contest

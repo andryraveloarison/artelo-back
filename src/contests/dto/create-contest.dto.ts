@@ -24,13 +24,29 @@ export class CreateContestDto {
   @IsString()
   reference_audio_url: string;
 
-  @ApiProperty({ 
-    example: 86400, 
-    description: 'Adjustable contest duration in seconds (e.g. 86400 for 24h, 3600 for 1h)', 
-    default: 86400 
+  @ApiProperty({
+    example: 86400,
+    description: 'Adjustable contest duration in seconds (e.g. 86400 for 24h, 3600 for 1h)',
+    default: 86400
   })
   @IsNotEmpty()
   @IsInt()
   @Min(60)
   duration_seconds: number;
+
+  @ApiProperty({ example: 'https://example.com/cover.jpg', description: 'URL of the contest cover image', required: false })
+  @IsOptional()
+  @IsString()
+  cover_image_url?: string;
+
+  @ApiProperty({ example: '#1DB954', description: 'Primary color for the contest card (hex)', required: false })
+  @IsOptional()
+  @IsString()
+  cover_color?: string;
+
+  @ApiProperty({ example: 300, description: 'Voting period duration in seconds after submissions close', required: false })
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  voting_duration_seconds?: number;
 }
