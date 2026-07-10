@@ -23,8 +23,8 @@ async function bootstrap() {
 
   // Setup Swagger OpenAPI Specification
   const config = new DocumentBuilder()
-    .setTitle('Artelo - Cover Contest API')
-    .setDescription('Backend REST API for Artelo cover contest platform. Includes ELO rating updates, cover uploads, and restrictive voting policies.')
+    .setTitle('Kanto - Cover Contest API')
+    .setDescription('Backend REST API for Kanto cover contest platform. Includes ELO rating updates, cover uploads, and restrictive voting policies.')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
