@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, UseGuards, Req, Param } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ProfilesService } from './profiles.service';
 import { SupabaseGuard } from '../supabase/supabase.guard';
@@ -35,5 +35,20 @@ export class ProfilesController {
   async getMeCovers(@Req() req: any) {
     const userId = req.user.id;
     return this.profilesService.getMeCovers(userId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a public user profile by ID' })
+  @ApiResponse({ status: 200, description: 'Profile returned successfully.' })
+  @ApiResponse({ status: 404, description: 'Profile not found.' })
+  async getById(@Param('id') id: string) {
+    return this.profilesService.getMe(id);
+  }
+
+  @Get(':id/covers')
+  @ApiOperation({ summary: 'Get all covers submitted by a user with their contest ranking' })
+  @ApiResponse({ status: 200, description: 'Covers returned successfully.' })
+  async getUserCovers(@Param('id') id: string) {
+    return this.profilesService.getMeCovers(id);
   }
 }
