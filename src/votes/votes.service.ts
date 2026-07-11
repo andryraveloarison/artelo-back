@@ -70,8 +70,7 @@ export class VotesService {
       .maybeSingle();
 
     if (existingVote) {
-      // Upsert: Let's update the existing vote
-      const { data: updatedVote, error: updateError } = await userSupabase
+      const { data: updatedVote, error: updateError } = await systemSupabase
         .from('votes')
         .update({ score: dto.score })
         .eq('id', existingVote.id)
@@ -86,7 +85,7 @@ export class VotesService {
     }
 
     // 6. Insert new vote
-    const { data: newVote, error: insertError } = await userSupabase
+    const { data: newVote, error: insertError } = await systemSupabase
       .from('votes')
       .insert({
         cover_id: dto.cover_id,
@@ -123,7 +122,7 @@ export class VotesService {
       throw new BadRequestException('You do not have permission to delete this vote');
     }
 
-    const { error: deleteError } = await userSupabase
+    const { error: deleteError } = await systemSupabase
       .from('votes')
       .delete()
       .eq('id', id);
