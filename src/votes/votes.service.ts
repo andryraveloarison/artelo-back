@@ -20,7 +20,7 @@ export class VotesService {
       .single();
 
     if (coverError || !targetCover) {
-      throw new NotFoundException(`Cover submission with ID ${dto.cover_id} not found`);
+      throw new NotFoundException(`Création avec l'ID ${dto.cover_id} introuvable`);
     }
 
     const contestId = targetCover.contest_id;
@@ -46,7 +46,7 @@ export class VotesService {
 
     // 3. Prevent voting on own cover
     if (targetCover.user_id === voterId) {
-      throw new BadRequestException('Vous ne pouvez pas voter pour votre propre cover');
+      throw new BadRequestException('Vous ne pouvez pas voter pour votre propre création');
     }
 
     // 4. Ensure voter has uploaded a cover for the SAME contest
@@ -58,7 +58,7 @@ export class VotesService {
       .maybeSingle();
 
     if (voterCoverError || !voterCover) {
-      throw new BadRequestException('Only users who have submitted their own cover to this contest are eligible to vote');
+      throw new BadRequestException('Seuls les participants ayant soumis une création à cette session sont éligibles au vote');
     }
 
     // 5. Check if vote already exists for this (cover, voter) pair to upsert or throw

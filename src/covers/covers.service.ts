@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
-import { CreateCoverDto } from './dto/create-cover.dto';
+import { CreateCreationDto } from './dto/create-creation.dto';
 
 @Injectable()
 export class CoversService {
@@ -8,7 +8,7 @@ export class CoversService {
 
   constructor(private supabaseService: SupabaseService) {}
 
-  async create(dto: CreateCoverDto, userId: string, token: string) {
+  async create(dto: CreateCreationDto, userId: string, token: string) {
     const userSupabase = this.supabaseService.getClientForUser(token);
     const systemSupabase = this.supabaseService.getClient();
 
@@ -42,7 +42,7 @@ export class CoversService {
       .maybeSingle();
 
     if (existingCover) {
-      throw new BadRequestException('You have already submitted a cover for this contest. Only one submission is allowed.');
+      throw new BadRequestException('You have already submitted a creation for this session. Only one submission is allowed.');
     }
 
     // 3. Submit cover
@@ -57,7 +57,7 @@ export class CoversService {
       .single();
 
     if (error) {
-      this.logger.error(`Error submitting cover: ${error.message}`);
+      this.logger.error(`Error submitting creation: ${error.message}`);
       throw new BadRequestException(error.message);
     }
 
@@ -74,7 +74,7 @@ export class CoversService {
       .single();
 
     if (error || !data) {
-      throw new NotFoundException(`Cover with ID ${id} not found`);
+      throw new NotFoundException(`Creation with ID ${id} not found`);
     }
 
     return data;
@@ -92,25 +92,25 @@ export class CoversService {
       .single();
 
     if (fetchError || !cover) {
-      throw new NotFoundException(`Cover with ID ${id} not found`);
+      throw new NotFoundException(`Creation with ID ${id} not found`);
     }
 
     // 2. Check if owner or admin
     if (cover.user_id !== userId && userRole !== 'admin') {
-      throw new ForbiddenException('You do not have permission to delete this cover');
+      throw new ForbiddenException('You do not have permission to delete this creation');
     }
 
-    // 3. Delete cover
+    // 3. Delete creation
     const { error: deleteError } = await userSupabase
       .from('covers')
       .delete()
       .eq('id', id);
 
     if (deleteError) {
-      this.logger.error(`Error deleting cover: ${deleteError.message}`);
+      this.logger.error(`Error deleting creation: ${deleteError.message}`);
       throw new BadRequestException(deleteError.message);
     }
 
-    return { message: 'Cover deleted successfully' };
+    return { message: 'Creation deleted successfully' };
   }
 }
