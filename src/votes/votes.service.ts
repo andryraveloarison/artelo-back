@@ -10,7 +10,7 @@ export class VotesService {
 
   async create(dto: CreateVoteDto, voterId: string, token: string) {
     const userSupabase = this.supabaseService.getClientForUser(token);
-    const systemSupabase = this.supabaseService.getClient();
+    const systemSupabase = this.supabaseService.getAdminClient();
 
     // 1. Fetch target cover details to get contest_id and owner_id
     const { data: targetCover, error: coverError } = await systemSupabase
@@ -105,7 +105,7 @@ export class VotesService {
 
   async remove(id: string, voterId: string, token: string) {
     const userSupabase = this.supabaseService.getClientForUser(token);
-    const systemSupabase = this.supabaseService.getClient();
+    const systemSupabase = this.supabaseService.getAdminClient();
 
     // Fetch vote to verify ownership
     const { data: vote, error: fetchError } = await systemSupabase

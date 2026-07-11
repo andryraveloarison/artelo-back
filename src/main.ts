@@ -9,8 +9,9 @@ async function bootstrap() {
 
   // Enable CORS
   app.enableCors({
-    origin: '*', // In production, replace with specific origins
+    origin: '*',
     credentials: true,
+    exposedHeaders: ['Date'],
   });
 
   // Enable Global Validation Pipe
