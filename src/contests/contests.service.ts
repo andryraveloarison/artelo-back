@@ -65,8 +65,15 @@ export class ContestsService {
     return contestsWithCounts;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, token?: string) {
     const supabase = this.supabaseService.getClient();
+
+    // Résout le voteur courant (optionnel) pour renvoyer son vote par cover
+    let voterId: string | null = null;
+    if (token) {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      voterId = user?.id ?? null;
+    }
 
     // Fetch contest detail
     const { data: contest, error } = await supabase
@@ -82,7 +89,7 @@ export class ContestsService {
     // 1. Fetch covers + votes (pas de join profiles car user_id → auth.users, pas profiles)
     const { data: covers } = await supabase
       .from('covers')
-      .select('*, votes(score)')
+      .select('*, votes(score, voter_id)')
       .eq('contest_id', id);
 
     const now = new Date();
@@ -100,12 +107,15 @@ export class ContestsService {
     const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
 
     const coversWithStats = covers.map((cover: any) => {
-      const votes = (cover.votes as { score: number }[]) || [];
+      const votes = (cover.votes as { score: number; voter_id: string }[]) || [];
       const voteCount = votes.length;
       const totalScore = votes.reduce((sum: number, v: any) => sum + v.score, 0);
       const averageScore =
         voteCount > 0 ? parseFloat((totalScore / voteCount).toFixed(2)) : 0;
       const profile = profileMap.get(cover.user_id);
+      const myVote = voterId
+        ? votes.find((v) => v.voter_id === voterId)?.score ?? null
+        : null;
 
       return {
         id: cover.id,
@@ -117,6 +127,7 @@ export class ContestsService {
         avatar_url: profile?.avatar_url || null,
         average_score: averageScore,
         vote_count: voteCount,
+        my_vote: myVote,
       };
     });
 

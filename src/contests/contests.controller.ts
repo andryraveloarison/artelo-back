@@ -44,8 +44,13 @@ export class ContestsController {
   @ApiParam({ name: 'id', description: 'Contest UUID' })
   @ApiResponse({ status: 200, description: 'Contest details and submissions.' })
   @ApiResponse({ status: 404, description: 'Contest not found.' })
-  async findOne(@Param('id') id: string) {
-    return this.contestsService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: any) {
+    const authHeader = req.headers['authorization'];
+    const token =
+      authHeader && authHeader.toLowerCase().startsWith('bearer ')
+        ? authHeader.slice(7)
+        : undefined;
+    return this.contestsService.findOne(id, token);
   }
 
   @Post()
